@@ -72,6 +72,7 @@ function buildGameState(room, hideDealer = false) {
   return {
     dealerHand,
     currentTurn: room.currentTurn,
+    dealerTurn: room.dealerTurn || false,
     players: room.players.map(p => ({
       id: p.id,
       name: p.name,
@@ -105,76 +106,7 @@ function isNatural(cards) {
     cards.some(c => ['10', 'J', 'Q', 'K'].includes(c.value));
 }
 
-function resolveGame(room) {
-  if (room.forcedOutcome === 'win') {
-    const bustCard = room.deck.find(c => getHandValue([...room.dealerHand, c]) > 21);
-    if (bustCard) {
-      room.deck = room.deck.filter(c => c !== bustCard);
-      room.dealerHand.push(bustCard);
-    } else {
-      room.dealerHand.push(room.deck.pop());
-    }
-    for (let player of room.players) {
-      for (let hand of player.hands) {
-        if (hand.result === 'bust') continue;
-        player.chips = parseFloat((player.chips + hand.bet * 2).toFixed(2));
-        hand.result = 'win';
-      }
-      player.acceptedBet = 0;
-      if (room.ledger[player.id]) room.ledger[player.id].currentChips = player.chips;
-    }
-    room.forcedOutcome = null;
-    room.currentTurn = null;
-    return;
-  }
-
-  if (room.forcedOutcome === 'lose') {
-    while (getHandValue(room.dealerHand) < 17) {
-      room.dealerHand.push(room.deck.pop());
-    }
-    const playerTotals = room.players
-      .flatMap(p => p.hands.filter(h => h.result !== 'bust').map(h => getHandValue(h.cards)))
-      .filter(v => !isNaN(v) && v > 0);
-    const highestPlayerTotal = playerTotals.length > 0 ? Math.max(...playerTotals) : 0;
-
-    if (highestPlayerTotal > 0 && getHandValue(room.dealerHand) <= highestPlayerTotal) {
-      const winCard = room.deck.find(c => {
-        const val = getHandValue([...room.dealerHand, c]);
-        return val > highestPlayerTotal && val <= 21;
-      });
-      if (winCard) {
-        room.deck = room.deck.filter(c => c !== winCard);
-        room.dealerHand.push(winCard);
-      }
-    }
-
-    const dealerTotal = getHandValue(room.dealerHand);
-    for (let player of room.players) {
-      for (let hand of player.hands) {
-        if (hand.result === 'bust') continue;
-        const playerTotal = getHandValue(hand.cards);
-        if (dealerTotal > 21 || playerTotal > dealerTotal) {
-          player.chips = parseFloat((player.chips + hand.bet * 2).toFixed(2));
-          hand.result = 'win';
-        } else if (playerTotal === dealerTotal) {
-          player.chips = parseFloat((player.chips + hand.bet).toFixed(2));
-          hand.result = 'push';
-        } else {
-          hand.result = 'lose';
-        }
-      }
-      player.acceptedBet = 0;
-      if (room.ledger[player.id]) room.ledger[player.id].currentChips = player.chips;
-    }
-    room.forcedOutcome = null;
-    room.currentTurn = null;
-    return;
-  }
-
-  while (getHandValue(room.dealerHand) < 17) {
-    room.dealerHand.push(room.deck.pop());
-  }
-
+function calculateResults(room) {
   const dealerTotal = getHandValue(room.dealerHand);
   const dealerHasBlackjack = isNatural(room.dealerHand);
 
@@ -202,6 +134,59 @@ function resolveGame(room) {
     if (room.ledger[player.id]) room.ledger[player.id].currentChips = player.chips;
   }
   room.currentTurn = null;
+  room.dealerTurn = false;
+}
+
+function resolveGame(room) {
+  if (room.forcedOutcome === 'win') {
+    const bustCard = room.deck.find(c => getHandValue([...room.dealerHand, c]) > 21);
+    if (bustCard) {
+      room.deck = room.deck.filter(c => c !== bustCard);
+      room.dealerHand.push(bustCard);
+    } else {
+      room.dealerHand.push(room.deck.pop());
+    }
+    for (let player of room.players) {
+      for (let hand of player.hands) {
+        if (hand.result === 'bust') continue;
+        player.chips = parseFloat((player.chips + hand.bet * 2).toFixed(2));
+        hand.result = 'win';
+      }
+      player.acceptedBet = 0;
+      if (room.ledger[player.id]) room.ledger[player.id].currentChips = player.chips;
+    }
+    room.forcedOutcome = null;
+    room.currentTurn = null;
+    room.dealerTurn = false;
+    return;
+  }
+
+  if (room.forcedOutcome === 'lose') {
+    while (getHandValue(room.dealerHand) < 17) {
+      room.dealerHand.push(room.deck.pop());
+    }
+    const playerTotals = room.players
+      .flatMap(p => p.hands.filter(h => h.result !== 'bust').map(h => getHandValue(h.cards)))
+      .filter(v => !isNaN(v) && v > 0);
+    const highestPlayerTotal = playerTotals.length > 0 ? Math.max(...playerTotals) : 0;
+
+    if (highestPlayerTotal > 0 && getHandValue(room.dealerHand) <= highestPlayerTotal) {
+      const winCard = room.deck.find(c => {
+        const val = getHandValue([...room.dealerHand, c]);
+        return val > highestPlayerTotal && val <= 21;
+      });
+      if (winCard) {
+        room.deck = room.deck.filter(c => c !== winCard);
+        room.dealerHand.push(winCard);
+      }
+    }
+    room.forcedOutcome = null;
+    calculateResults(room);
+    return;
+  }
+
+  room.dealerTurn = true;
+  room.currentTurn = null;
 }
 
 io.on('connection', (socket) => {
@@ -216,6 +201,7 @@ io.on('connection', (socket) => {
       deck: [],
       dealerHand: [],
       currentTurn: null,
+      dealerTurn: false,
       forcedNextCard: null,
       forcedOutcome: null,
       ledger: {},
@@ -367,6 +353,7 @@ io.on('connection', (socket) => {
       }
     }
     room.currentTurn = room.players.find(p => p.hands.length > 0 && p.hands[0].bet > 0)?.id || null;
+    room.dealerTurn = false;
     io.to(room.code).emit('gameState', buildGameState(room, true));
   });
 
@@ -411,9 +398,14 @@ io.on('connection', (socket) => {
 
     const allDone = room.players.every(p => p.hands.every(h => h.gameOver));
     if (allDone) {
-      resolveGame(room);
-      io.to(room.code).emit('gameState', buildGameState(room, false));
-      emitLedger(room);
+      if (room.forcedOutcome) {
+        resolveGame(room);
+        io.to(room.code).emit('gameState', buildGameState(room, false));
+        emitLedger(room);
+      } else {
+        resolveGame(room);
+        io.to(room.code).emit('gameState', buildGameState(room, false));
+      }
     } else {
       io.to(room.code).emit('gameState', buildGameState(room, true));
     }
@@ -431,9 +423,14 @@ io.on('connection', (socket) => {
     room.currentTurn = getNextTurn(room, player.id);
     const allDone = room.players.every(p => p.hands.every(h => h.gameOver));
     if (allDone) {
-      resolveGame(room);
-      io.to(room.code).emit('gameState', buildGameState(room, false));
-      emitLedger(room);
+      if (room.forcedOutcome) {
+        resolveGame(room);
+        io.to(room.code).emit('gameState', buildGameState(room, false));
+        emitLedger(room);
+      } else {
+        resolveGame(room);
+        io.to(room.code).emit('gameState', buildGameState(room, false));
+      }
     } else {
       io.to(room.code).emit('gameState', buildGameState(room, true));
     }
@@ -455,9 +452,14 @@ io.on('connection', (socket) => {
     room.currentTurn = getNextTurn(room, player.id);
     const allDone = room.players.every(p => p.hands.every(h => h.gameOver));
     if (allDone) {
-      resolveGame(room);
-      io.to(room.code).emit('gameState', buildGameState(room, false));
-      emitLedger(room);
+      if (room.forcedOutcome) {
+        resolveGame(room);
+        io.to(room.code).emit('gameState', buildGameState(room, false));
+        emitLedger(room);
+      } else {
+        resolveGame(room);
+        io.to(room.code).emit('gameState', buildGameState(room, false));
+      }
     } else {
       io.to(room.code).emit('gameState', buildGameState(room, true));
     }
@@ -481,6 +483,27 @@ io.on('connection', (socket) => {
     io.to(room.code).emit('gameState', buildGameState(room, true));
   });
 
+  socket.on('dealerDraw', () => {
+    const room = rooms[socket.roomCode];
+    if (!room || socket.id !== room.dealer.id || !room.dealerTurn) return;
+    room.dealerHand.push(room.deck.pop());
+    if (getHandValue(room.dealerHand) > 21) {
+      calculateResults(room);
+      io.to(room.code).emit('gameState', buildGameState(room, false));
+      emitLedger(room);
+    } else {
+      io.to(room.code).emit('gameState', buildGameState(room, false));
+    }
+  });
+
+  socket.on('dealerStand', () => {
+    const room = rooms[socket.roomCode];
+    if (!room || socket.id !== room.dealer.id || !room.dealerTurn) return;
+    calculateResults(room);
+    io.to(room.code).emit('gameState', buildGameState(room, false));
+    emitLedger(room);
+  });
+
   socket.on('newRound', () => {
     const room = rooms[socket.roomCode];
     if (!room || socket.id !== room.dealer.id) return;
@@ -493,6 +516,7 @@ io.on('connection', (socket) => {
     room.dealerHand = [];
     room.deck = [];
     room.currentTurn = null;
+    room.dealerTurn = false;
     room.forcedNextCard = null;
     room.forcedOutcome = null;
     io.to(room.code).emit('newRound');
@@ -548,9 +572,14 @@ io.on('connection', (socket) => {
 
     const allDone = room.players.length === 0 || room.players.every(p => p.hands.every(h => h.gameOver));
     if (allDone && room.players.length > 0) {
-      resolveGame(room);
-      io.to(room.code).emit('gameState', buildGameState(room, false));
-      emitLedger(room);
+      if (room.forcedOutcome) {
+        resolveGame(room);
+        io.to(room.code).emit('gameState', buildGameState(room, false));
+        emitLedger(room);
+      } else {
+        resolveGame(room);
+        io.to(room.code).emit('gameState', buildGameState(room, false));
+      }
     } else if (room.players.length > 0) {
       io.to(room.code).emit('gameState', buildGameState(room, true));
     }

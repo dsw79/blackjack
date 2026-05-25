@@ -70,8 +70,12 @@ export default function Game({
       }
     }
 
+    if (prev && gameState.dealerHand.length > (prev.dealerHand?.length || 0)) {
+      playCardDeal()
+    }
+
     const allDone = gameState.players.every(p => p.hands.every(h => h.gameOver))
-    if (allDone && me && !showOverlay) {
+    if (allDone && !gameState.dealerTurn && me && !showOverlay) {
       const results = me.hands.map(h => h.result)
       const isBlackjack = me.hands.length === 1 && results[0] === 'win' &&
         me.hands[0].cards.length === 2 &&
@@ -131,6 +135,10 @@ export default function Game({
 
   const hasBuyIn = chips > 0 || betStatus?.type === 'accepted' || betStatus?.type === 'pending'
 
+  const dealerHandValue = gameState?.dealerHand
+    ? getHandValue(gameState.dealerHand.filter(c => c.value !== '?'))
+    : 0
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-start lg:justify-center p-3 sm:p-6"
       style={{ background: 'radial-gradient(ellipse at top, #1a0a2e 0%, #0a0a0a 70%)' }}>
@@ -144,7 +152,6 @@ export default function Game({
       )}
 
       <div className="flex flex-col lg:flex-row gap-4 w-full max-w-5xl">
-
         <div className="flex-1 flex flex-col gap-3">
 
           <div className="flex items-center justify-between">
@@ -186,9 +193,7 @@ export default function Game({
                 ))}
               </div>
               {gameState?.dealerHand?.length > 0 && (
-                <p className="text-zinc-400 text-sm">
-                  {getHandValue(gameState.dealerHand.filter(c => c.value !== '?'))}
-                </p>
+                <p className="text-zinc-400 text-sm">{dealerHandValue}</p>
               )}
             </div>
 
@@ -364,7 +369,27 @@ export default function Game({
               </div>
             )}
 
-            {isDealer && allDone && gameState && (
+            {isDealer && gameState?.dealerTurn && (
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-zinc-400 text-xs uppercase tracking-widest">Your turn — draw or stand</p>
+                <div className="flex gap-3">
+                  <button onClick={() => socket.emit('dealerDraw')}
+                    className="px-6 py-2 rounded-lg font-bold text-white border border-zinc-600 hover:bg-white/10 transition-colors">
+                    Draw
+                  </button>
+                  <button onClick={() => socket.emit('dealerStand')}
+                    className="px-6 py-2 rounded-lg font-black text-zinc-950 transition-all active:scale-95"
+                    style={{ background: 'linear-gradient(135deg, #FFD700, #FF6B00)' }}>
+                    Stand
+                  </button>
+                </div>
+                <p className="text-zinc-500 text-xs">
+                  Your hand: {dealerHandValue}
+                </p>
+              </div>
+            )}
+
+            {isDealer && allDone && gameState && !gameState.dealerTurn && (
               <div className="flex justify-center">
                 <button onClick={() => { socket.emit('newRound'); setCheatSet(null) }}
                   className="px-8 py-3 rounded-lg font-black text-zinc-950 text-lg uppercase tracking-widest transition-all active:scale-95"
@@ -374,7 +399,7 @@ export default function Game({
               </div>
             )}
 
-            {isDealer && cheatMode && gameState && (
+            {isDealer && cheatMode && gameState && !gameState.dealerTurn && (
               <div className="flex flex-col items-center gap-2 p-3 rounded-xl border border-red-900/50"
                 style={{ background: 'rgba(100,0,0,0.3)' }}>
                 <p className="text-red-400 text-xs uppercase tracking-widest">🎰 Dealer Mode</p>
@@ -463,10 +488,10 @@ export default function Game({
           </div>
 
           <div className="flex gap-3 lg:hidden">
-  <div className="flex-1">
-    <Chat messages={messages} />
-  </div>
-</div>
+            <div className="flex-1">
+              <Chat messages={messages} />
+            </div>
+          </div>
 
         </div>
 
