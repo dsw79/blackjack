@@ -77,10 +77,14 @@ export default function Game({
     const allDone = gameState.players.every(p => p.hands.every(h => h.gameOver))
     if (allDone && !gameState.dealerTurn && me && !showOverlay) {
       const results = me.hands.map(h => h.result)
-      const isBlackjack = me.hands.length === 1 && results[0] === 'win' &&
+
+      const isBlackjack = me.hands.length === 1 &&
+        results[0] === 'win' &&
         me.hands[0].cards.length === 2 &&
         me.hands[0].cards.some(c => c.value === 'A') &&
-        me.hands[0].cards.some(c => ['10', 'J', 'Q', 'K'].includes(c.value))
+        me.hands[0].cards.some(c => ['10', 'J', 'Q', 'K'].includes(c.value)) &&
+        getHandValue(me.hands[0].cards) === 21
+
       const hasWin = results.includes('win')
       const hasBust = results.includes('bust')
       const hasLose = results.includes('lose')

@@ -1,6 +1,17 @@
 import { useEffect } from 'react'
 import confetti from 'canvas-confetti'
 
+function getHandValue(cards) {
+  let total = 0, aces = 0
+  for (let card of cards) {
+    if (card.value === 'A') { aces++; total += 11 }
+    else if (['J','Q','K'].includes(card.value)) total += 10
+    else total += parseInt(card.value)
+  }
+  while (total > 21 && aces > 0) { total -= 10; aces-- }
+  return total
+}
+
 export default function ResultOverlay({ gameState, myId, onClose }) {
   if (!gameState) return null
 
@@ -15,9 +26,13 @@ export default function ResultOverlay({ gameState, myId, onClose }) {
   const hasBust = results.includes('bust')
   const hasLose = results.includes('lose')
   const hasPush = results.every(r => r === 'push')
+
   const isBlackjack = me.hands.length === 1 &&
     me.hands[0].result === 'win' &&
-    me.hands[0].cards.length === 2
+    me.hands[0].cards.length === 2 &&
+    me.hands[0].cards.some(c => c.value === 'A') &&
+    me.hands[0].cards.some(c => ['10', 'J', 'Q', 'K'].includes(c.value)) &&
+    getHandValue(me.hands[0].cards) === 21
 
   useEffect(() => {
     if (isBlackjack) {
