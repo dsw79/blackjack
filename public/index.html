@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Blackjack</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+
+    <div id="lobby">
+      <h1>Blackjack</h1>
+      <input type="text" id="name-input" placeholder="Enter your name" />
+      <button onclick="createRoom()">Create Game</button>
+      <div id="join-area">
+        <input type="text" id="room-input" placeholder="Enter room code" />
+        <button onclick="joinRoom()">Join Game</button>
+      </div>
+    </div>
+
+    <div id="game">
+
+      <div id="room-code-corner"></div>
+
+      <div id="dealer-area">
+        <p class="label">Dealer</p>
+        <div id="dealer-hand"></div>
+        <p id="dealer-score"></p>
+      </div>
+
+      <div id="pending-bets"></div>
+
+      <p id="turn-message" style="text-align:center; font-size:14px; min-height:20px;"></p>
+
+      <div id="bet-area">
+        <p id="chips-display">Chips: 1000</p>
+        <input type="number" id="bet-input" placeholder="Enter bet amount" min="1" />
+        <button onclick="placeBet()">Place Bet</button>
+        <p id="bet-display">Bet: 0</p>
+        <p id="bet-status"></p>
+      </div>
+
+      <div id="controls"></div>
+
+      <div id="players-row"></div>
+
+      <div id="chat">
+        <div id="chat-messages"></div>
+        <div id="chat-input-row">
+          <input type="text" id="chat-input" placeholder="Say something..." />
+          <button onclick="sendChat()">Send</button>
+        </div>
+      </div>
+
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>
